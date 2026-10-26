@@ -1,0 +1,44 @@
+name: hotzi
+description: "Hotzi : vends ton Wi-Fi au ticket."
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  path: ^1.9.1
+  pdf: ^3.13.1
+  printing: ^5.15.1
+  qr_flutter: ^4.1.0
+  share_plus: ^13.3.1
+  sqflite: ^2.4.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/OFL-BricolageGrotesque.txt
+    - assets/fonts/OFL-Inter.txt
+    - assets/fonts/OFL-JetBrainsMono.txt
+
+  # Polices variables intégrées à l'app : elle doit marcher sans Internet.
+  fonts:
+    - family: Bricolage
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf

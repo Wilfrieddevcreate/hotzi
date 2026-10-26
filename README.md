@@ -12,6 +12,7 @@ Hotzi transforme un smartphone Android en point Wi-Fi payant : le vendeur vend d
 
 | Dossier | Rôle |
 |---|---|
+| `app` | Application Flutter du vendeur : forfaits, vente de tickets avec QR code, historique, code secret. Voir [app/README.md](app/README.md). |
 | `android/net` | Bibliothèque réseau en Kotlin : Wi-Fi Direct, proxy d'accès, portail `hotzi.wifi`, règles des tickets. L'app Flutter l'utilisera telle quelle. |
 | `android/banc` | Petite app de test du prototype : démarrer le Wi-Fi, créer des tickets de test, voir qui a Internet. |
 | `docs` | Documentation et protocole de test. |
