@@ -28,7 +28,7 @@ Une application Android ordinaire ne peut pas filtrer le partage de connexion du
 | Dossier | Rôle |
 |---|---|
 | [`app`](app/README.md) | Application Flutter du vendeur : forfaits, vente de tickets avec QR code, partage et impression, historique, code secret, Wi-Fi. |
-| `android/net` | Bibliothèque réseau en Kotlin, utilisée par l'app : Wi-Fi Direct, proxy d'accès, portail `hotzi.wifi`, règles des tickets et base de données (forfaits, tickets, ventes). |
+| `android/net` | Bibliothèque réseau en Kotlin, utilisée par l'app : Wi-Fi Direct, proxy d'accès, portail `http://hotzi` avec scan du ticket, règles des tickets et base de données (forfaits, tickets, ventes). |
 | `android/banc` | Petite app de test du prototype réseau : démarrer le Wi-Fi, créer des tickets de test, voir qui a Internet. |
 | [`docs`](docs/prototype-reseau.md) | Mode d'emploi et protocole de test du prototype réseau. |
 
@@ -48,7 +48,7 @@ flutter build apk --release  # APK : app/build/app/outputs/flutter-apk/app-relea
 
 ```sh
 cd android
-./gradlew :net:testDebugUnitTest   # 27 tests : règles des tickets, nom du Wi-Fi, requêtes du proxy
+./gradlew :net:testDebugUnitTest   # 34 tests : tickets, portail, code secret, nom du Wi-Fi, proxy
 ./gradlew :banc:assembleDebug      # APK : android/banc/build/outputs/apk/debug/banc-debug.apk
 ```
 
@@ -57,6 +57,8 @@ cd android
 1. Envoie-toi l'APK (WhatsApp, Drive, Bluetooth…) et ouvre-le sur le téléphone.
 2. Accepte « installer des applis inconnues » pour l'appli qui ouvre le fichier, puis installe.
 
+**Version 0.4.0 : désinstalle Hotzi une fois avant de l'installer.** L'app est maintenant signée avec sa vraie clé, et Android refuse de la poser par-dessus une version signée avec l'ancienne. Ensuite, les mises à jour s'installeront de nouveau par-dessus.
+
 Seul le téléphone du vendeur installe Hotzi : les téléphones clients n'installent rien. N'installe pas en même temps l'app vendeur et l'app de test réseau : elles se disputeraient le Wi-Fi Direct.
 
 ## Principes
@@ -64,5 +66,6 @@ Seul le téléphone du vendeur installe Hotzi : les téléphones clients n'insta
 - **Jamais de faux état** : l'app n'affiche « protégé » que si le contrôle réseau tourne vraiment. Si Hotzi s'arrête, personne n'a Internet.
 - **Tout marche hors ligne** : forfaits, tickets et ventes sont enregistrés sur le téléphone. Les polices sont intégrées à l'app.
 - **Un ticket garde son prix** : modifier un forfait ne change pas un ticket déjà vendu.
+- **Code secret protégé** : la base ne garde que son empreinte, jamais le code.
 - **Des codes sans confusion** : 8 caractères, sans 0/O ni 1/I. Le QR code ne contient que le code.
 - **Pour tout le monde** : mots simples, gros boutons, animations coupées si le téléphone le demande.

@@ -1,8 +1,7 @@
 import 'models.dart';
 
-/// Accès aux données du vendeur. Pour l'instant en local (SQLite) ; une fois le
-/// réseau validé, la base passera côté Kotlin pour que le service qui coupe
-/// les clients y ait accès même quand l'app est fermée.
+/// Accès aux données du vendeur. La base est côté Kotlin, pour que le service
+/// qui coupe les clients y ait accès même quand l'app est fermée.
 abstract interface class HotziRepository {
   Future<List<Plan>> plans();
 
@@ -20,4 +19,12 @@ abstract interface class HotziRepository {
   Future<String?> setting(String key);
 
   Future<void> saveSetting(String key, String value);
+
+  /// Vrai si le vendeur a déjà choisi son code secret.
+  Future<bool> hasPin();
+
+  /// Enregistre le code secret : seule son empreinte est gardée, jamais le code.
+  Future<void> savePin(String pin);
+
+  Future<bool> checkPin(String pin);
 }

@@ -108,9 +108,9 @@ void main() {
       await state.setPin('2580');
       expect(state.unlocked, isTrue);
       state.lock();
-      expect(state.unlock('1111'), isFalse);
+      expect(await state.unlock('1111'), isFalse);
       expect(state.unlocked, isFalse);
-      expect(state.unlock('2580'), isTrue);
+      expect(await state.unlock('2580'), isTrue);
     });
 
     test('le Wi-Fi ne démarre pas sans autorisation, ni Wi-Fi éteint', () async {

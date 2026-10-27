@@ -17,8 +17,13 @@ class Portal(
     private val log: (String) -> Unit,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+    /** Lecteur de QR code (jsQR), lu une fois dans l'APK puis gardé en mémoire. */
+    private val qrScript: ByteArray? by lazy {
+        Portal::class.java.getResourceAsStream(QR_SCRIPT)?.use { it.readBytes() }
+    }
+
     fun isPortalHost(host: String, proxyHost: String): Boolean =
-        host == HOST || host == "hotzi" || host == proxyHost
+        host == HOST || host == OLD_HOST || host == proxyHost
 
     /**
      * @param proxied vrai si la requête est passée par le proxy, faux si le
@@ -36,6 +41,9 @@ class Portal(
         when {
             request.method == "POST" && path.startsWith("/activer") ->
                 activate(readForm(request, input)["code"].orEmpty(), ip, base, output)
+            path.startsWith("/qr.js") -> qrScript
+                ?.let { Http.send(output, 200, "OK", "text/javascript; charset=utf-8", it) }
+                ?: Http.send(output, 404, "Not Found", "text/plain; charset=utf-8", ByteArray(0))
             path.startsWith("/favicon") ->
                 Http.send(output, 404, "Not Found", "text/plain; charset=utf-8", ByteArray(0))
             else -> Http.sendHtml(output, page(ip, base, message = null, typed = ""))
@@ -92,12 +100,19 @@ class Portal(
             title = "Entre le code de ton ticket",
             body = """
 <form method="post" action="$base/activer">
+<div id="scanbox" hidden>
+<button type="button" class="scan" id="scan">$CAMERA<span>Scanner mon ticket</span></button>
+<input type="file" id="photo" accept="image/*" capture="environment" hidden>
+<p class="scanmsg" id="scanmsg" role="status"></p>
+<p class="or">ou tape le code</p>
+</div>
 <label for="code">Code du ticket</label>
 <input id="code" name="code"$inputClass value="${escape(typed)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="Ex. : K7QM-4XPA" required>
 <p class="hint">8 lettres et chiffres, imprimés sous le QR code.</p>
 $error
-<button type="submit">Me connecter</button>
+<button type="submit" id="go">Me connecter</button>
 </form>
+<script>${scanScript(base)}</script>
 <p class="foot">Pas de ticket ? Achète-le au vendeur.<br>Un ticket marche sur un seul téléphone.</p>
 """,
         )
@@ -116,7 +131,7 @@ $error
 <div class="bar"><div id="b" style="width:$percent%"></div></div>
 <p class="muted">Fin à ${hour(ticket.expiresAt)} · ${escape(ticket.label)}</p>
 <p>Tu peux fermer cette page. Internet continue.</p>
-<p class="muted">Pour revoir ton temps, tape <strong>$HOST</strong> dans le navigateur.</p>
+<p class="muted">Pour revoir ton temps, tape <strong>http://$HOST</strong> dans le navigateur.</p>
 <script>
 (function(){var s=$remaining,d=$total,t=document.getElementById('t'),b=document.getElementById('b');
 function p(n){return(n<10?'0':'')+n}
@@ -128,6 +143,47 @@ f()})();
 """,
         )
     }
+
+    /**
+     * Scan du ticket par photo : sur une page http, le navigateur refuse la caméra en direct,
+     * mais il laisse prendre une photo. Le QR code est lu sur le téléphone du client.
+     */
+    private fun scanScript(base: String) = """
+(function(){
+var box=document.getElementById('scanbox'),btn=document.getElementById('scan'),file=document.getElementById('photo'),
+msg=document.getElementById('scanmsg'),code=document.getElementById('code');
+if(!window.URL||!URL.createObjectURL||!document.createElement('canvas').getContext)return;
+box.hidden=false;
+btn.onclick=function(){file.click()};
+file.onchange=function(){
+var f=file.files&&file.files[0];if(!f)return;
+btn.disabled=true;say('Lecture du ticket…',0);
+ready(function(ok){
+if(!ok){done(null);return}
+var url=URL.createObjectURL(f),img=new Image();
+img.onload=function(){var r=null;try{r=decode(img)}catch(e){}URL.revokeObjectURL(url);done(r)};
+img.onerror=function(){URL.revokeObjectURL(url);done(null)};
+img.src=url})};
+function ready(cb){if(window.jsQR){cb(true);return}
+var s=document.createElement('script');s.src='$base/qr.js';
+s.onload=function(){cb(!!window.jsQR)};s.onerror=function(){cb(false)};document.head.appendChild(s)}
+function decode(img){
+var W=img.naturalWidth,H=img.naturalHeight,sizes=[800,1200,1600,500],seen={};
+for(var i=0;i<sizes.length;i++){
+var k=Math.min(1,sizes[i]/Math.max(W,H)),w=Math.round(W*k),h=Math.round(H*k);
+if(seen[w])continue;seen[w]=1;
+var c=document.createElement('canvas');c.width=w;c.height=h;
+var x=c.getContext('2d');x.drawImage(img,0,0,w,h);
+var r=jsQR(x.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'dontInvert'});
+if(r&&r.data){var t=r.data.replace(/[^0-9A-Za-z]/g,'').toUpperCase();return t.length===8?t.slice(0,4)+'-'+t.slice(4):''}}
+return null}
+function done(c){btn.disabled=false;file.value='';
+if(c){code.value=c;code.className='';say('Code lu : '+c+'. Appuie sur « Me connecter ».',0);document.getElementById('go').focus()}
+else if(c===''){say('Ce QR code n’est pas un ticket Hotzi. Tape le code imprimé sous le QR code.',1)}
+else{say('Je n’arrive pas à lire le QR code. Reprends la photo de plus près, avec de la lumière, ou tape le code.',1)}}
+function say(t,bad){msg.textContent=t;msg.className=bad?'scanmsg bad':'scanmsg'}
+})();
+"""
 
     private fun layout(kicker: String, title: String, body: String) = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
@@ -185,7 +241,12 @@ f()})();
     }
 
     companion object {
-        const val HOST = "hotzi.wifi"
+        /** Adresse du portail. Sans point, elle ne peut exister nulle part sur Internet. */
+        const val HOST = "hotzi"
+
+        /** Ancienne adresse, toujours acceptée pour les clients qui l'ont gardée. */
+        private const val OLD_HOST = "hotzi.wifi"
+        private const val QR_SCRIPT = "portal/jsQR.js"
         private const val MAX_FORM_BYTES = 4096
         private const val RECENT_MS = 6 * 60 * 60_000L
 
@@ -197,6 +258,8 @@ f()})();
         private val FINISHED = "Ton temps est fini" to "Internet est coupé sur ce téléphone. Entre le code d'un nouveau ticket pour continuer."
 
         private const val LOGO = """<svg width="36" height="36" viewBox="0 0 100 100" fill="none" stroke-linecap="round" aria-hidden="true"><path d="M12 62a38 38 0 0 1 76 0" stroke="#fff" stroke-width="9"/><path d="M26 62a24 24 0 0 1 48 0" stroke="#fff" stroke-width="9"/><path d="M36 62a14 14 0 0 1 28 0z" fill="#FF8A3D"/><path d="M16 76h68" stroke="#fff" stroke-width="9"/></svg>"""
+
+        private const val CAMERA = """<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>"""
 
         private const val CSS = """
 *{box-sizing:border-box}
@@ -219,6 +282,13 @@ button{margin-top:18px;width:100%;height:60px;border:0;border-radius:18px;backgr
 .bar{height:10px;background:#EDE7FF;border-radius:999px;overflow:hidden}
 .bar div{height:10px;background:#5B2EE5;border-radius:999px}
 .muted{color:#5E5776}
+[hidden]{display:none!important}
+button.scan{margin-top:0;background:#fff;border:2px solid #5B2EE5;color:#5B2EE5;display:flex;align-items:center;justify-content:center;gap:10px}
+button.scan:disabled{opacity:.6}
+.scanmsg{margin:10px 0 0;font-weight:600;color:#0A7A4A}
+.scanmsg:empty{display:none}
+.scanmsg.bad{color:#B42318}
+.or{margin:16px 0 14px;text-align:center;color:#5E5776;font-size:14px}
 """
     }
 }

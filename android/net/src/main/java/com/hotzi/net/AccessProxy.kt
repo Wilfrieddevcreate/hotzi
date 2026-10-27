@@ -110,7 +110,7 @@ class AccessProxy(
             Http.sendText(output, 400, "Bad Request", "Cible invalide.")
             return
         }
-        // Le portail n'existe qu'en http : on ne laisse jamais « https://hotzi.wifi » partir sur Internet.
+        // Le portail n'existe qu'en http : on ne laisse jamais « https://hotzi » (ni l'ancienne adresse) partir sur Internet.
         if (portal.isPortalHost(target.host, address.hostAddress.orEmpty())) {
             Http.sendText(output, 502, "Bad Gateway", "Ouvre http://${Portal.HOST}")
             return

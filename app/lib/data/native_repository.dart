@@ -45,4 +45,13 @@ class NativeRepository implements HotziRepository {
   @override
   Future<void> saveSetting(String key, String value) =>
       _channel.invokeMethod<void>('saveSetting', {'key': key, 'value': value});
+
+  @override
+  Future<bool> hasPin() async => await _channel.invokeMethod<bool>('hasPin') ?? false;
+
+  @override
+  Future<void> savePin(String pin) => _channel.invokeMethod<void>('savePin', {'pin': pin});
+
+  @override
+  Future<bool> checkPin(String pin) async => await _channel.invokeMethod<bool>('checkPin', {'pin': pin}) ?? false;
 }

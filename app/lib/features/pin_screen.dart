@@ -68,7 +68,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
     setState(() => _digits = _digits.substring(0, _digits.length - 1));
   }
 
-  void _complete() {
+  Future<void> _complete() async {
     final state = HotziScope.read(context);
     if (widget.creating) {
       if (_first == null) {
@@ -83,7 +83,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
       }
       return;
     }
-    if (state.unlock(_digits)) return;
+    if (await state.unlock(_digits) || !mounted) return;
     _failures++;
     if (_failures >= _maxFailures) {
       _failures = 0;

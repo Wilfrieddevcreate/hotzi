@@ -14,6 +14,9 @@ class MemoryRepository implements HotziRepository {
   final _tickets = <Ticket>[];
   final _sales = <Sale>[];
   final _settings = <String, String>{};
+
+  /// Les tests n'ont pas besoin d'empreinte : la vraie est calculée côté Kotlin.
+  String? _pin;
   var _lastId = 0;
 
   @override
@@ -63,4 +66,13 @@ class MemoryRepository implements HotziRepository {
   Future<void> saveSetting(String key, String value) async {
     _settings[key] = value;
   }
+
+  @override
+  Future<bool> hasPin() async => _pin != null;
+
+  @override
+  Future<void> savePin(String pin) async => _pin = pin;
+
+  @override
+  Future<bool> checkPin(String pin) async => _pin != null && pin == _pin;
 }

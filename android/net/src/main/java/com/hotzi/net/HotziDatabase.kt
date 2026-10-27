@@ -154,6 +154,19 @@ class HotziDatabase private constructor(context: Context) :
         )
     }
 
+    fun hasPin(): Boolean = setting(KEY_PIN) != null
+
+    /** Enregistre le code secret du vendeur ; seule son empreinte est gardée. */
+    fun savePin(pin: String) = saveSetting(KEY_PIN, PinHash.create(pin))
+
+    /** Vérifie le code secret. Un ancien code gardé en clair est remplacé par son empreinte au passage. */
+    fun checkPin(pin: String): Boolean {
+        val stored = setting(KEY_PIN) ?: return false
+        val ok = PinHash.matches(pin, stored)
+        if (ok && !PinHash.isHash(stored)) savePin(pin)
+        return ok
+    }
+
     override fun load(): List<Ticket> = tickets()
 
     override fun insert(ticket: Ticket): Ticket = insertTicket(writableDatabase, ticket)
@@ -241,6 +254,7 @@ class HotziDatabase private constructor(context: Context) :
     companion object {
         private const val NAME = "hotzi.db"
         private const val VERSION = 1
+        private const val KEY_PIN = "pin"
 
         /** Forfaits de démonstration du cahier des charges, modifiables par le vendeur. */
         private val DEMO_PLANS = listOf(

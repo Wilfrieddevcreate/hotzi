@@ -36,16 +36,16 @@ class AppState extends ChangeNotifier {
   List<Ticket> tickets = const [];
   Map<int, Sale> salesByTicket = const {};
   NetworkState network = const NetworkState();
-  String? _pin;
+  bool _hasPin = false;
   bool unlocked = false;
 
   DateTime get now => _clock();
   List<Plan> get activePlans => plans.where((plan) => plan.active).toList();
-  bool get hasPin => _pin != null;
+  bool get hasPin => _hasPin;
 
   Future<void> load() async {
     await Future.wait([_reloadPlans(notify: false), _reloadTickets(notify: false)]);
-    _pin = await _repository.setting(_pinKey);
+    _hasPin = await _repository.hasPin();
     _networkUpdates ??= _network.states.listen(_onNetwork);
     notifyListeners();
   }
@@ -90,16 +90,16 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Le code PIN reste sur le téléphone, dans la base privée de l'app.
+  /// Le code secret reste sur le téléphone ; la base n'en garde que l'empreinte.
   Future<void> setPin(String pin) async {
-    await _repository.saveSetting(_pinKey, pin);
-    _pin = pin;
+    await _repository.savePin(pin);
+    _hasPin = true;
     unlocked = true;
     notifyListeners();
   }
 
-  bool unlock(String pin) {
-    if (pin != _pin) return false;
+  Future<bool> unlock(String pin) async {
+    if (!await _repository.checkPin(pin)) return false;
     unlocked = true;
     notifyListeners();
     return true;
@@ -146,8 +146,6 @@ class AppState extends ChangeNotifier {
     salesByTicket = {for (final sale in await _repository.sales()) sale.ticketId: sale};
     if (notify) notifyListeners();
   }
-
-  static const _pinKey = 'pin';
 }
 
 /// Donne accès à [AppState] à tous les écrans.

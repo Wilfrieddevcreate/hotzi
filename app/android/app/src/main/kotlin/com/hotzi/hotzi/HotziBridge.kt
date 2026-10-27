@@ -23,7 +23,7 @@ import java.util.concurrent.Executors
 
 /**
  * Pont entre l'app Flutter et la bibliothèque réseau :
- * - « hotzi/data » : forfaits, tickets, ventes, réglages (la base est côté Kotlin) ;
+ * - « hotzi/data » : forfaits, tickets, ventes, réglages, code secret (la base est côté Kotlin) ;
  * - « hotzi/network » : allumer, éteindre, nom du Wi-Fi, annuler un ticket, autorisations ;
  * - « hotzi/network/state » : l'état du Wi-Fi, envoyé à chaque changement.
  *
@@ -84,6 +84,9 @@ class HotziBridge(private val activity: Activity, messenger: BinaryMessenger) {
                     ).map(::ticketMap)
                     "setting" -> database.setting(call.argument<String>("key")!!)
                     "saveSetting" -> database.saveSetting(call.argument("key")!!, call.argument("value")!!).let { null }
+                    "hasPin" -> database.hasPin()
+                    "savePin" -> database.savePin(call.argument("pin")!!).let { null }
+                    "checkPin" -> database.checkPin(call.argument("pin")!!)
                     else -> NOT_IMPLEMENTED
                 }
             }

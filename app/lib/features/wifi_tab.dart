@@ -283,7 +283,7 @@ class _WifiTabState extends State<WifiTab> with WidgetsBindingObserver {
       title: 'Détails techniques',
       children: [
         Text('Proxy : ${network.proxyHost ?? '192.168.49.1'} · port ${network.proxyPort}', style: HotziText.mono(14)),
-        Text('Portail : http://hotzi.wifi', style: HotziText.mono(14)),
+        Text('Portail : http://hotzi', style: HotziText.mono(14)),
         Text('Type de réseau : Wi-Fi Direct', style: HotziText.body(14)),
       ],
     );

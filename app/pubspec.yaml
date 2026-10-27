@@ -2,7 +2,7 @@ name: hotzi
 description: "Hotzi : vends ton Wi-Fi au ticket."
 publish_to: 'none'
 
-version: 0.3.0+3
+version: 0.4.0+4
 
 environment:
   sdk: ^3.12.2

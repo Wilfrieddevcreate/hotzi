@@ -33,10 +33,12 @@ class HelpClientScreen extends StatelessWidget {
         values: [('Nom d\'hôte', proxyHost), ('Port', '${network.proxyPort}')],
       ),
       const _StepData(
-        title: 'Entrer le code du ticket',
+        title: 'Entrer le ticket',
         text:
-            'Ouvre le navigateur, tape l\'adresse ci-dessous et entre le code du ticket. Le temps démarre à ce moment-là.',
-        values: [('Adresse', 'http://hotzi.wifi')],
+            'Ouvre le navigateur et tape l\'adresse ci-dessous en entier, avec « http:// ». '
+            'Appuie sur « Scanner mon ticket » et prends le QR code en photo, ou tape le code. '
+            'Le temps démarre à ce moment-là.',
+        values: [('Adresse', 'http://hotzi')],
       ),
     ];
     return Scaffold(
