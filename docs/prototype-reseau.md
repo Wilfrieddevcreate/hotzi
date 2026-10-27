@@ -49,6 +49,17 @@ adb logcat -s Hotzi                # suit le journal en direct pendant les tests
 
 Ouvrir ensuite le navigateur et taper **`http://hotzi.wifi`** en entier, avec le `http://`. Sinon Chrome essaie la version sécurisée et affiche une erreur.
 
+## Tester avec l'app vendeur
+
+Le même réseau est maintenant dans l'app Hotzi (`app/`). On peut faire les tests ci-dessous avec elle au lieu de l'app de test :
+
+- **Démarrer :** onglet **Wi-Fi** › « Allumer le Wi-Fi ».
+- **Créer un ticket :** onglet **Vendre**. Le plus court des forfaits de démonstration dure 30 minutes. Pour le test 6, crée un forfait de 2 minutes dans l'onglet **Forfaits**.
+- **Voir qui a Internet, couper un client :** onglet **Wi-Fi**, liste « téléphones avec Internet ».
+- **Annuler un ticket :** onglet **Tickets** › le ticket › « Annuler ce ticket ».
+
+Désinstalle d'abord l'app de test réseau (Hotzi Banc) : les deux apps se disputeraient le Wi-Fi Direct.
+
 ## Protocole de test
 
 Il faut le POP 7 et deux téléphones clients, A et B, réglés comme ci-dessus. Les numéros entre parenthèses renvoient aux tests du cahier des charges.
@@ -79,7 +90,7 @@ Il faut le POP 7 et deux téléphones clients, A et B, réglés comme ci-dessus.
 - Un ticket en cours peut passer sur une nouvelle adresse si l'ancienne n'a rien fait depuis 3 minutes, par exemple après une reconnexion. Il ne marche jamais sur deux téléphones en même temps.
 - Nom et mot de passe du Wi-Fi fixés dans le code, à rendre réglables dans l'app.
 - `.wifi` est une vraie extension de nom de domaine. Le proxy ne laisse jamais `hotzi.wifi` partir sur Internet, mais pour l'app finale il faudra soit acheter `hotzi.wifi`, soit choisir un nom qui ne peut pas exister sur Internet.
-- Tickets enregistrés dans un fichier JSON, qui passera en SQLite dans l'app finale.
+- Les tickets sont enregistrés dans la même base SQLite que l'app vendeur (`hotzi.db`).
 
 ## En cas de problème
 

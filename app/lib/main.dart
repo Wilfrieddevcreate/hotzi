@@ -3,13 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'app.dart';
-import 'data/sqlite_repository.dart';
+import 'data/native_repository.dart';
+import 'network/network.dart';
 import 'state/app_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _registerFontLicenses();
-  final state = AppState(await SqliteRepository.open());
+  final state = AppState(NativeRepository(), NativeNetwork());
   await state.load();
   runApp(HotziApp(state: state));
 }

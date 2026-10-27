@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import java.io.File
+
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -13,6 +13,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Assemble le Wi-Fi Hotzi, le proxy et les règles d'accès. Un seul moteur par
@@ -22,6 +23,8 @@ class HotziEngine private constructor(context: Context) {
 
     data class State(
         val running: Boolean = false,
+        /** Heure du dernier démarrage, pour afficher « allumé depuis 08:02 ». */
+        val runningSince: Long? = null,
         val group: WifiDirectHotspot.Group? = null,
         val proxyAddress: String? = null,
         val upstream: String = "",
@@ -32,15 +35,34 @@ class HotziEngine private constructor(context: Context) {
         val controlActive: Boolean get() = running && group != null && proxyAddress != null
     }
 
+    /** Un client qui a Internet en ce moment. */
+    data class Session(
+        val code: String,
+        val label: String,
+        val clientIp: String,
+        val remainingMs: Long,
+        val connections: Int,
+    )
+
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val main = Handler(Looper.getMainLooper())
     private val worker: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private val logLines = ArrayDeque<String>()
     private val listeners = LinkedHashSet<() -> Unit>()
+    private val ticketChanges = AtomicInteger()
 
-    val access = AccessController(JsonFilePersistence(File(appContext.filesDir, "tickets.json")))
+    val database = HotziDatabase.get(appContext)
+    val access = AccessController(database).also {
+        it.onChange = {
+            ticketChanges.incrementAndGet()
+            publish()
+        }
+    }
     val registry = ConnectionRegistry()
+
+    /** Augmente à chaque changement de ticket : l'app sait alors qu'elle doit relire la liste. */
+    val ticketsVersion: Int get() = ticketChanges.get()
     private val portal = Portal(access, ::log)
     private val upstream = UpstreamNetwork(appContext) { publish() }
     private val hotspot = WifiDirectHotspot(appContext, object : WifiDirectHotspot.Listener {
@@ -65,7 +87,7 @@ class HotziEngine private constructor(context: Context) {
     fun start() {
         if (state.running) return
         prefs.edit().putBoolean(KEY_SHOULD_RUN, true).apply()
-        update { State(running = true, upstream = upstream.describe()) }
+        update { State(running = true, runningSince = System.currentTimeMillis(), upstream = upstream.describe()) }
         log("Démarrage du Wi-Fi Hotzi")
         upstream.start()
         hotspot.start(NETWORK_NAME, PASSPHRASE)
@@ -88,10 +110,25 @@ class HotziEngine private constructor(context: Context) {
         log("Wi-Fi Hotzi arrêté")
     }
 
+    /** Ticket de test, sans forfait ni vente (app de test réseau). */
     fun createTicket(label: String, durationMs: Long, priceFcfa: Int): Ticket =
         access.create(label, durationMs, priceFcfa).also {
             log("Ticket ${it.displayCode} créé : $label")
         }
+
+    /** Vente depuis l'app : les tickets sont aussitôt utilisables sur le portail. */
+    fun sell(planId: Long, quantity: Int, payment: String, at: Long): List<Ticket> =
+        database.sell(planId, quantity, payment, at).also { sold ->
+            access.register(sold)
+            log("${sold.size} ticket(s) vendu(s) : ${sold.joinToString { it.displayCode }}")
+        }
+
+    /** Clients qui ont Internet en ce moment, le plus ancien d'abord. */
+    fun sessions(now: Long = System.currentTimeMillis()): List<Session> =
+        access.all()
+            .filter { it.status == TicketStatus.ACTIVE && it.clientIp != null && it.remainingMs(now) > 0 }
+            .sortedBy { it.activatedAt }
+            .map { Session(it.code, it.label, it.clientIp!!, it.remainingMs(now), registry.count(it.clientIp)) }
 
     /** Annule un ticket et coupe tout de suite Internet au client qui l'utilise. */
     fun revoke(code: String) {

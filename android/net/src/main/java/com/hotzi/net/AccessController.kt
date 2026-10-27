@@ -22,27 +22,75 @@ class AccessController(
         data object TooManyAttempts : Activation
     }
 
+    /** Appelé après chaque changement d'un ticket (création, activation, fin, annulation). */
+    @Volatile
+    var onChange: (() -> Unit)? = null
+
     private val lock = Any()
     private val tickets = LinkedHashMap<String, Ticket>()
     private val failures = HashMap<String, ArrayDeque<Long>>()
     private val lastSeen = HashMap<String, Long>()
+    private var changed = false
 
     init {
         persistence.load().forEach { tickets[it.code] = it }
         expireDue()
     }
 
-    fun create(label: String, durationMs: Long, priceFcfa: Int): Ticket = synchronized(lock) {
+    fun create(label: String, durationMs: Long, priceFcfa: Int): Ticket = mutate {
         var code: String
         do {
             code = TicketCodes.generate()
         } while (tickets.containsKey(code))
-        update(Ticket(code, label, durationMs, priceFcfa, clock()))
+        persistence.insert(Ticket(code, label, durationMs, priceFcfa, clock())).also {
+            tickets[it.code] = it
+            changed = true
+        }
+    }
+
+    /** Ajoute des tickets déjà enregistrés ailleurs, par exemple vendus depuis l'app. */
+    fun register(sold: List<Ticket>) = mutate {
+        sold.forEach { tickets[it.code] = it }
+        changed = sold.isNotEmpty()
     }
 
     fun all(): List<Ticket> = synchronized(lock) { tickets.values.toList() }
 
-    fun activate(rawCode: String, ip: String): Activation = synchronized(lock) {
+    fun activate(rawCode: String, ip: String): Activation = mutate { activateLocked(rawCode, ip) }
+
+    fun isAllowed(ip: String): Boolean = synchronized(lock) { activeFor(ip, clock()) != null }
+
+    fun activeTicketFor(ip: String): Ticket? = synchronized(lock) { activeFor(ip, clock()) }
+
+    /** Dernier ticket utilisé depuis cette adresse, même terminé : le portail s'en sert pour expliquer la coupure. */
+    fun lastTicketFor(ip: String): Ticket? = synchronized(lock) {
+        tickets.values.filter { it.clientIp == ip }.maxByOrNull { it.activatedAt ?: 0L }
+    }
+
+    /** Annule un ticket. Renvoie le ticket annulé, ou null si le code est inconnu. */
+    fun revoke(code: String): Ticket? = mutate {
+        val ticket = tickets[TicketCodes.normalize(code)]
+        when {
+            ticket == null -> null
+            ticket.status == TicketStatus.EXPIRED || ticket.status == TicketStatus.REVOKED -> ticket
+            else -> update(ticket.copy(status = TicketStatus.REVOKED))
+        }
+    }
+
+    /** Note qu'un client autorisé vient d'ouvrir une connexion. */
+    fun touch(ip: String) {
+        synchronized(lock) { lastSeen[ip] = clock() }
+    }
+
+    /** Passe en « terminé » les tickets dont l'heure est dépassée et les renvoie. */
+    fun expireDue(): List<Ticket> = mutate {
+        val now = clock()
+        tickets.values
+            .filter { it.status == TicketStatus.ACTIVE && (it.expiresAt ?: 0L) <= now }
+            .map { update(it.copy(status = TicketStatus.EXPIRED)) }
+    }
+
+    private fun activateLocked(rawCode: String, ip: String): Activation {
         val now = clock()
         activeFor(ip, now)?.let { return Activation.AlreadyConnected(it) }
         if (isThrottled(ip, now)) return Activation.TooManyAttempts
@@ -52,7 +100,7 @@ class AccessController(
             failures.getOrPut(ip) { ArrayDeque() }.addLast(now)
             return Activation.Unknown
         }
-        when (ticket.status) {
+        return when (ticket.status) {
             TicketStatus.REVOKED -> Activation.Revoked
             TicketStatus.EXPIRED -> Activation.Expired
             TicketStatus.ACTIVE -> when {
@@ -82,40 +130,6 @@ class AccessController(
         }
     }
 
-    fun isAllowed(ip: String): Boolean = synchronized(lock) { activeFor(ip, clock()) != null }
-
-    fun activeTicketFor(ip: String): Ticket? = synchronized(lock) { activeFor(ip, clock()) }
-
-    /** Dernier ticket utilisé depuis cette adresse, même terminé : le portail s'en sert pour expliquer la coupure. */
-    fun lastTicketFor(ip: String): Ticket? = synchronized(lock) {
-        tickets.values.filter { it.clientIp == ip }.maxByOrNull { it.activatedAt ?: 0L }
-    }
-
-    /** Annule un ticket. Renvoie le ticket annulé, ou null si le code est inconnu. */
-    fun revoke(code: String): Ticket? = synchronized(lock) {
-        val ticket = tickets[TicketCodes.normalize(code)] ?: return null
-        if (ticket.status == TicketStatus.EXPIRED || ticket.status == TicketStatus.REVOKED) return ticket
-        update(ticket.copy(status = TicketStatus.REVOKED))
-    }
-
-    /** Note qu'un client autorisé vient d'ouvrir une connexion. */
-    fun touch(ip: String) {
-        synchronized(lock) { lastSeen[ip] = clock() }
-    }
-
-    /** Passe en « terminé » les tickets dont l'heure est dépassée et les renvoie. */
-    fun expireDue(): List<Ticket> = synchronized(lock) {
-        val now = clock()
-        val due = tickets.values
-            .filter { it.status == TicketStatus.ACTIVE && (it.expiresAt ?: 0L) <= now }
-            .map { it.copy(status = TicketStatus.EXPIRED) }
-        if (due.isNotEmpty()) {
-            due.forEach { tickets[it.code] = it }
-            persist()
-        }
-        due
-    }
-
     private fun activeFor(ip: String, now: Long): Ticket? = tickets.values.firstOrNull {
         it.status == TicketStatus.ACTIVE && it.clientIp == ip && (it.expiresAt ?: 0L) > now
     }
@@ -136,13 +150,23 @@ class AccessController(
         return recent.size >= MAX_FAILURES
     }
 
+    /** À appeler sous le verrou : enregistre le ticket et note qu'il faudra prévenir l'app. */
     private fun update(ticket: Ticket): Ticket {
         tickets[ticket.code] = ticket
-        persist()
+        persistence.update(ticket)
+        changed = true
         return ticket
     }
 
-    private fun persist() = persistence.save(tickets.values.toList())
+    /** Exécute [block] sous le verrou, puis prévient [onChange] hors du verrou si un ticket a changé. */
+    private fun <T> mutate(block: () -> T): T {
+        val (result, notify) = synchronized(lock) {
+            changed = false
+            block() to changed
+        }
+        if (notify) onChange?.invoke()
+        return result
+    }
 
     companion object {
         const val MAX_FAILURES = 5

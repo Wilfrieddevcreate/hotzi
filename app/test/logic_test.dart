@@ -3,7 +3,10 @@ import 'package:hotzi/data/format.dart';
 import 'package:hotzi/data/memory_repository.dart';
 import 'package:hotzi/data/models.dart';
 import 'package:hotzi/data/ticket_codes.dart';
+import 'package:hotzi/network/network.dart';
 import 'package:hotzi/state/app_state.dart';
+
+import 'fake_network.dart';
 
 void main() {
   group('Codes des tickets', () {
@@ -47,11 +50,13 @@ void main() {
 
   group('Ventes', () {
     late AppState state;
+    late FakeNetwork network;
     var now = DateTime(2026, 10, 26, 14, 32);
 
     setUp(() async {
       now = DateTime(2026, 10, 26, 14, 32);
-      state = AppState(MemoryRepository(), clock: () => now);
+      network = FakeNetwork();
+      state = AppState(MemoryRepository(), network, clock: () => now);
       await state.load();
     });
 
@@ -106,6 +111,38 @@ void main() {
       expect(state.unlock('1111'), isFalse);
       expect(state.unlocked, isFalse);
       expect(state.unlock('2580'), isTrue);
+    });
+
+    test('le Wi-Fi ne démarre pas sans autorisation, ni Wi-Fi éteint', () async {
+      network.permissionsGranted = false;
+      expect(await state.startWifi(), WifiStartProblem.permissions);
+      network
+        ..permissionsGranted = true
+        ..wifiOn = false;
+      expect(await state.startWifi(), WifiStartProblem.wifiOff);
+      expect(network.commands, isNot(contains('start')));
+
+      network.wifiOn = true;
+      expect(await state.startWifi(), isNull);
+      expect(network.commands, contains('start'));
+    });
+
+    test('l\'état du Wi-Fi arrive dans l\'app, et les tickets sont relus quand ils changent', () async {
+      var notified = 0;
+      state.addListener(() => notified++);
+      network.emit(const NetworkState(running: true, controlActive: true, ticketsVersion: 0));
+      await pumpEventQueue();
+      expect(state.network.controlActive, isTrue);
+
+      final mini = state.plans.first;
+      final sold = (await state.sell(mini, 1, PaymentMethod.cash)).single;
+      await state.revoke(sold);
+      expect(network.commands, contains('revoke ${sold.code}'));
+
+      final before = notified;
+      network.emit(const NetworkState(running: true, controlActive: true, ticketsVersion: 1));
+      await pumpEventQueue();
+      expect(notified, greaterThan(before));
     });
   });
 }

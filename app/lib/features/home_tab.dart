@@ -11,6 +11,7 @@ import '../widgets/hotzi_logo.dart';
 import '../widgets/nav_bar.dart';
 import 'plan_edit_screen.dart';
 import 'ticket_screen.dart';
+import 'wifi/wifi_actions.dart';
 
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key, required this.onNavigate});
@@ -30,7 +31,7 @@ class HomeTab extends StatelessWidget {
         const SizedBox(height: 14),
         Entrance(
           delay: Entrance.step(1),
-          child: _WifiCard(onMore: () => onNavigate(4)),
+          child: _WifiCard(onOpen: () => onNavigate(4)),
         ),
         const SizedBox(height: 14),
         Entrance(
@@ -128,14 +129,108 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Tant que le réseau n'est pas branché, on le dit : jamais de faux « tout va bien ».
+/// État du Wi-Fi en un coup d'œil. « Protégé » ne s'affiche que si le contrôle tourne vraiment.
 class _WifiCard extends StatelessWidget {
-  const _WifiCard({required this.onMore});
+  const _WifiCard({required this.onOpen});
 
-  final VoidCallback onMore;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
+    final network = HotziScope.of(context).network;
+    if (network.failing) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: HotziColors.mangoSoft,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFF7B27A), width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: HotziColors.warn),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Les tickets ne sont plus protégés',
+                    style: HotziText.body(17, weight: FontWeight.w800, color: HotziColors.warn),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Par sécurité, personne n\'a Internet pour le moment. Hotzi réessaie tout seul.\n${network.error}',
+              style: HotziText.body(15, color: const Color(0xFF4A2410), height: 1.45),
+            ),
+            const SizedBox(height: 12),
+            HotziButton(label: 'Voir le Wi-Fi', icon: Icons.wifi_rounded, height: 52, onPressed: onOpen),
+          ],
+        ),
+      );
+    }
+    final String title;
+    final Widget body;
+    if (network.controlActive) {
+      title = 'Ton Wi-Fi est allumé';
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _Tile(
+                icon: Icons.phone_android_rounded,
+                iconColor: HotziColors.sun,
+                value: '${network.sessions.length}',
+                label: network.sessions.length > 1 ? 'clients en ligne' : 'client en ligne',
+              ),
+              const SizedBox(width: 10),
+              const _Tile(
+                icon: Icons.verified_user_outlined,
+                iconColor: Color(0xFF6CE9A6),
+                value: 'Protégés',
+                label: 'tes tickets',
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          TextButton.icon(
+            onPressed: onOpen,
+            style: TextButton.styleFrom(foregroundColor: Colors.white, padding: EdgeInsets.zero),
+            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+            label: Text(
+              'Voir les téléphones connectés',
+              style: HotziText.body(14, weight: FontWeight.w600, color: Colors.white),
+            ),
+          ),
+        ],
+      );
+    } else if (network.starting) {
+      title = 'Démarrage du Wi-Fi…';
+      body = Text('Quelques secondes.', style: HotziText.body(14, color: HotziColors.onDeep));
+    } else {
+      title = 'Ton Wi-Fi est éteint';
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Allume-le pour que tes clients puissent se connecter.',
+            style: HotziText.body(14, color: HotziColors.onDeep, height: 1.45),
+          ),
+          const SizedBox(height: 12),
+          HotziButton(
+            label: 'Allumer le Wi-Fi',
+            icon: Icons.power_settings_new_rounded,
+            style: HotziButtonStyle.mango,
+            height: 52,
+            onPressed: () => startWifi(context),
+          ),
+        ],
+      );
+    }
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: HotziColors.violetDeep, borderRadius: BorderRadius.circular(22)),
@@ -144,32 +239,64 @@ class _WifiCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.wifi_off_rounded, color: HotziColors.onDeep),
-              const SizedBox(width: 10),
+              if (network.controlActive)
+                const PulseDot()
+              else if (network.starting)
+                const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                )
+              else
+                const Icon(Icons.wifi_off_rounded, color: HotziColors.onDeep),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Wi-Fi pas encore relié',
-                  style: HotziText.body(17, weight: FontWeight.w700, color: Colors.white),
+                  title,
+                  style: HotziText.body(18, weight: FontWeight.w700, color: Colors.white),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Tes forfaits, tickets et ventes sont bien gardés. Le Wi-Fi sera branché ici après le test sur le téléphone.',
-            style: HotziText.body(14, color: HotziColors.onDeep, height: 1.45),
-          ),
-          const SizedBox(height: 6),
-          TextButton.icon(
-            onPressed: onMore,
-            style: TextButton.styleFrom(foregroundColor: Colors.white, padding: EdgeInsets.zero),
-            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-            label: Text(
-              'En savoir plus',
-              style: HotziText.body(14, weight: FontWeight.w600, color: Colors.white),
-            ),
-          ),
+          const SizedBox(height: 12),
+          body,
         ],
+      ),
+    );
+  }
+}
+
+class _Tile extends StatelessWidget {
+  const _Tile({required this.icon, required this.iconColor, required this.value, required this.label});
+
+  final IconData icon;
+  final Color iconColor;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: HotziText.body(16, weight: FontWeight.w800, color: Colors.white),
+                  ),
+                  Text(label, style: HotziText.body(13, color: HotziColors.onDeep)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

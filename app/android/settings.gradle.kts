@@ -20,7 +20,12 @@ pluginManagement {
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.0.1" apply false
+    id("com.android.library") version "9.0.1" apply false
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
 }
 
 include(":app")
+
+// Bibliothèque réseau partagée avec l'app de test (Wi-Fi Direct, proxy, tickets, base de données).
+include(":net")
+project(":net").projectDir = file("../../android/net")

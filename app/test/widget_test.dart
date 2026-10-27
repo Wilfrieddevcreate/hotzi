@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotzi/app.dart';
 import 'package:hotzi/data/memory_repository.dart';
+import 'package:hotzi/data/models.dart';
+import 'package:hotzi/network/network.dart';
 import 'package:hotzi/state/app_state.dart';
+
+import 'fake_network.dart';
+
+late FakeNetwork network;
 
 Future<AppState> _pumpApp(WidgetTester tester, {String? pin}) async {
   // Animations coupées, comme pour un utilisateur qui les a désactivées.
@@ -12,7 +18,8 @@ Future<AppState> _pumpApp(WidgetTester tester, {String? pin}) async {
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
 
-  final state = AppState(MemoryRepository());
+  network = FakeNetwork();
+  final state = AppState(MemoryRepository(), network);
   await state.load();
   if (pin != null) await state.setPin(pin);
   await tester.pumpWidget(HotziApp(state: state));
@@ -78,5 +85,65 @@ void main() {
     expect(state.tickets, hasLength(1));
     expect(state.tickets.single.planName, 'Standard');
     expect(state.today().totalFcfa, 100);
+  });
+
+  testWidgets('le Wi-Fi éteint se rallume depuis l\'accueil, et l\'accueil ne dit « protégé » qu\'une fois prêt', (
+    tester,
+  ) async {
+    await _pumpApp(tester, pin: '2580');
+    expect(find.text('Ton Wi-Fi est éteint'), findsOneWidget);
+    expect(find.text('Protégés'), findsNothing);
+
+    await tester.tap(find.text('Allumer le Wi-Fi'));
+    await tester.pumpAndSettle();
+    expect(network.commands, contains('start'));
+
+    network.emit(const NetworkState(running: true));
+    // Le petit indicateur de démarrage tourne sans fin : on avance juste d'un pas.
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Démarrage du Wi-Fi…'), findsOneWidget);
+    expect(find.text('Protégés'), findsNothing);
+
+    network.emit(const NetworkState(running: true, controlActive: true));
+    await tester.pumpAndSettle();
+    expect(find.text('Ton Wi-Fi est allumé'), findsOneWidget);
+    expect(find.text('Protégés'), findsOneWidget);
+
+    network.emit(const NetworkState(running: true, error: 'Le proxy s\'est arrêté.'));
+    await tester.pumpAndSettle();
+    expect(find.text('Les tickets ne sont plus protégés'), findsOneWidget);
+  });
+
+  testWidgets('couper un client depuis l\'onglet Wi-Fi annule son ticket', (tester) async {
+    final state = await _pumpApp(tester, pin: '2580');
+    final sold = (await state.sell(state.plans.first, 1, PaymentMethod.cash)).single;
+    network.emit(
+      NetworkState(
+        running: true,
+        controlActive: true,
+        proxyHost: '192.168.49.1',
+        sessions: [
+          NetworkSession(
+            code: sold.code,
+            planName: 'Mini',
+            clientIp: '192.168.49.23',
+            remaining: const Duration(minutes: 12),
+            connections: 3,
+          ),
+        ],
+      ),
+    );
+    await tester.tap(find.text('Wi-Fi').last);
+    await tester.pumpAndSettle();
+    expect(find.text('1 téléphone avec Internet'), findsOneWidget);
+    expect(find.textContaining('Il reste 12 min'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Couper'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Couper'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Oui, couper'));
+    await tester.pumpAndSettle();
+    expect(network.commands, contains('revoke ${sold.code}'));
   });
 }

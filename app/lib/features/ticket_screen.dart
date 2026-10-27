@@ -5,12 +5,14 @@ import 'package:flutter/services.dart';
 import '../data/format.dart';
 import '../data/models.dart';
 import '../data/ticket_codes.dart';
+import '../state/app_state.dart';
 import '../theme/colors.dart';
 import '../theme/text.dart';
 import '../widgets/entrance.dart';
 import '../widgets/hotzi_button.dart';
 import 'ticket/ticket_card.dart';
 import 'ticket/ticket_export.dart';
+import 'wifi/wifi_actions.dart';
 
 /// Un ou plusieurs tickets à montrer, partager ou imprimer.
 /// Avec [justSold], affiche la confirmation de la vente.
@@ -32,7 +34,10 @@ class _TicketScreenState extends State<TicketScreen> {
   int _page = 0;
   bool _sharing = false;
 
-  Ticket get _current => widget.tickets[_page];
+  /// Les tickets à jour : leur état change quand un client les active ou quand ils se terminent.
+  List<Ticket> _fresh = const [];
+
+  Ticket get _current => _fresh[_page];
 
   @override
   void dispose() {
@@ -65,8 +70,18 @@ class _TicketScreenState extends State<TicketScreen> {
     if (!shared) _say('L\'image du ticket n\'a pas pu être préparée. Réessaie.');
   }
 
+  Future<void> _cancel(Ticket ticket) async {
+    final active = ticket.status == TicketStatus.active;
+    if (!await confirmCut(context, what: active ? 'pour ce ticket' : 'avec ce ticket')) return;
+    if (!mounted) return;
+    await HotziScope.read(context).revoke(ticket);
+    _say('Ticket annulé');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final state = HotziScope.of(context);
+    _fresh = [for (final ticket in widget.tickets) state.tickets.where((t) => t.id == ticket.id).firstOrNull ?? ticket];
     final total = widget.tickets.fold(0, (sum, ticket) => sum + ticket.priceFcfa);
     return Scaffold(
       body: SafeArea(
@@ -101,9 +116,15 @@ class _TicketScreenState extends State<TicketScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   child: Entrance(
                     delay: const Duration(milliseconds: 150),
-                    child: RepaintBoundary(
-                      key: _cards[index],
-                      child: TicketCard(ticket: widget.tickets[index]),
+                    child: Column(
+                      children: [
+                        RepaintBoundary(
+                          key: _cards[index],
+                          child: TicketCard(ticket: _fresh[index]),
+                        ),
+                        const SizedBox(height: 12),
+                        _LiveStatus(ticket: _fresh[index], now: state.now, onCancel: () => _cancel(_fresh[index])),
+                      ],
                     ),
                   ),
                 ),
@@ -123,7 +144,7 @@ class _TicketScreenState extends State<TicketScreen> {
                       _Action(
                         icon: Icons.print_outlined,
                         label: widget.tickets.length > 1 ? 'Tout imprimer' : 'Imprimer',
-                        onTap: () => TicketExport.printTickets(widget.tickets),
+                        onTap: () => TicketExport.printTickets(_fresh),
                       ),
                     ],
                   ),
@@ -147,6 +168,49 @@ class _TicketScreenState extends State<TicketScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Où en est le ticket, et le bouton pour l'annuler tant qu'il peut servir.
+class _LiveStatus extends StatelessWidget {
+  const _LiveStatus({required this.ticket, required this.now, required this.onCancel});
+
+  final Ticket ticket;
+  final DateTime now;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final expiresAt = ticket.expiresAt;
+    final text = switch (ticket.status) {
+      TicketStatus.available => 'Pas encore utilisé. Le temps démarrera quand le client entrera le code.',
+      TicketStatus.active when expiresAt != null =>
+        'En cours · il reste ${Format.remaining(expiresAt.difference(now).isNegative ? Duration.zero : expiresAt.difference(now))}'
+            '${ticket.clientId == null ? '' : ' · téléphone ${ticket.clientId}'}',
+      TicketStatus.active => 'En cours',
+      TicketStatus.expired => 'Terminé${expiresAt == null ? '' : ' à ${Format.when(expiresAt, now)}'}.',
+      TicketStatus.revoked => 'Annulé par toi. Il ne marche plus.',
+    };
+    final usable = ticket.status == TicketStatus.available || ticket.status == TicketStatus.active;
+    return Column(
+      children: [
+        Text(
+          text,
+          textAlign: TextAlign.center,
+          style: HotziText.body(14, color: HotziColors.ink2),
+        ),
+        if (usable)
+          TextButton.icon(
+            onPressed: onCancel,
+            style: TextButton.styleFrom(foregroundColor: HotziColors.danger),
+            icon: const Icon(Icons.block_rounded, size: 18),
+            label: Text(
+              'Annuler ce ticket',
+              style: HotziText.body(14, weight: FontWeight.w700, color: HotziColors.danger),
+            ),
+          ),
+      ],
     );
   }
 }

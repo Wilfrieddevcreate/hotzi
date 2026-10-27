@@ -141,6 +141,32 @@ class AccessControllerTest {
         assertEquals(TicketStatus.EXPIRED, restartedLate.all().single().status)
     }
 
+    @Test
+    fun `l'app est prévenue à chaque changement de ticket, pas pour un simple refus`() {
+        var changes = 0
+        access.onChange = { changes++ }
+        val ticket = access.create("Standard", 60_000, 100)
+        assertEquals(1, changes)
+
+        granted(access.activate(ticket.code, "192.168.49.10"))
+        assertEquals(2, changes)
+
+        assertEquals(Activation.InUse, access.activate(ticket.code, "192.168.49.11"))
+        assertEquals(2, changes)
+
+        now += 60_000
+        access.expireDue()
+        assertEquals(3, changes)
+    }
+
+    @Test
+    fun `un ticket vendu depuis l'app est utilisable dès son enregistrement`() {
+        val sold = store.insert(Ticket(TicketCodes.generate(), "Mini", 30 * 60_000L, 50, now, planId = 1))
+        access.register(listOf(sold))
+        granted(access.activate(sold.code, "192.168.49.10"))
+        assertEquals(TicketStatus.ACTIVE, store.load().single().status)
+    }
+
     private companion object {
         const val MOVE_DELAY = AccessController.MOVE_AFTER_IDLE_MS
     }

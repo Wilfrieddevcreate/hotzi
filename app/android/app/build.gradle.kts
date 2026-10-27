@@ -41,3 +41,7 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation(project(":net"))
+}

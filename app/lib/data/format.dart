@@ -29,6 +29,15 @@ abstract final class Format {
     return hours == 1 ? '1 heure' : '$hours heures';
   }
 
+  /// Temps restant : « 4 h 12 », « 38 min », « 45 s ».
+  static String remaining(Duration duration) {
+    if (duration.inHours > 0) {
+      return '${duration.inHours} h ${(duration.inMinutes % 60).toString().padLeft(2, '0')}';
+    }
+    if (duration.inMinutes > 0) return '${duration.inMinutes} min';
+    return '${duration.inSeconds} s';
+  }
+
   static const _days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
   static const _months = [
     'janvier',
