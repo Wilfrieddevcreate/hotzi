@@ -14,6 +14,7 @@ import com.hotzi.net.HotziEngine
 import com.hotzi.net.HotziPermissions
 import com.hotzi.net.HotziService
 import com.hotzi.net.Ticket
+import com.hotzi.net.WifiCredentials
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -23,7 +24,7 @@ import java.util.concurrent.Executors
 /**
  * Pont entre l'app Flutter et la bibliothèque réseau :
  * - « hotzi/data » : forfaits, tickets, ventes, réglages (la base est côté Kotlin) ;
- * - « hotzi/network » : allumer, éteindre, annuler un ticket, autorisations ;
+ * - « hotzi/network » : allumer, éteindre, nom du Wi-Fi, annuler un ticket, autorisations ;
  * - « hotzi/network/state » : l'état du Wi-Fi, envoyé à chaque changement.
  *
  * Les clés des données sont celles des colonnes de la base, comme côté Dart.
@@ -110,6 +111,12 @@ class HotziBridge(private val activity: Activity, messenger: BinaryMessenger) {
                 engine.revoke(call.argument<String>("code")!!)
                 result.success(null)
             }
+            "changeWifi" -> try {
+                engine.changeWifi(WifiCredentials(call.argument("name")!!, call.argument("passphrase")!!))
+                result.success(null)
+            } catch (e: IllegalArgumentException) {
+                result.error("hotzi", e.message, null)
+            }
             "hasPermissions" -> result.success(HotziPermissions.missing(activity, includeOptional = false).isEmpty())
             "requestPermissions" -> {
                 val missing = HotziPermissions.missing(activity, includeOptional = true)
@@ -145,8 +152,8 @@ class HotziBridge(private val activity: Activity, messenger: BinaryMessenger) {
             "running" to state.running,
             "runningSince" to state.runningSince,
             "controlActive" to state.controlActive,
-            "networkName" to (state.group?.networkName ?: HotziEngine.NETWORK_NAME),
-            "passphrase" to (state.group?.passphrase?.ifEmpty { null } ?: HotziEngine.PASSPHRASE),
+            "networkName" to (state.group?.networkName ?: engine.credentials.name),
+            "passphrase" to (state.group?.passphrase?.ifEmpty { null } ?: engine.credentials.passphrase),
             "proxyHost" to state.group?.ownerAddress?.hostAddress,
             "proxyPort" to HotziEngine.PROXY_PORT,
             "upstream" to state.upstream,

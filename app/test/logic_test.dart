@@ -145,4 +145,25 @@ void main() {
       expect(notified, greaterThan(before));
     });
   });
+
+  group('Nom et mot de passe du Wi-Fi', () {
+    test('le vendeur choisit la fin du nom, avec les règles d\'Android', () {
+      expect(WifiNaming.ending('DIRECT-hz-Hotzi'), 'Hotzi');
+      expect(WifiNaming.endingProblem('Chez Awa'), isNull);
+      expect(WifiNaming.endingProblem('Boutique_2-Gare'), isNull);
+      expect(WifiNaming.endingProblem('a' * 22), isNull);
+      expect(WifiNaming.endingProblem(''), isNotNull);
+      expect(WifiNaming.endingProblem('a' * 23), isNotNull);
+      expect(WifiNaming.endingProblem('Chez Aïcha'), isNotNull);
+    });
+
+    test('le mot de passe fait 8 à 63 caractères, sans espace ni accent', () {
+      expect(WifiNaming.passphraseProblem('12345678'), isNull);
+      expect(WifiNaming.passphraseProblem('Awa#2026!'), isNull);
+      expect(WifiNaming.passphraseProblem('1234567'), isNotNull);
+      expect(WifiNaming.passphraseProblem('x' * 64), isNotNull);
+      expect(WifiNaming.passphraseProblem('mot de passe'), isNotNull);
+      expect(WifiNaming.passphraseProblem('événement'), isNotNull);
+    });
+  });
 }

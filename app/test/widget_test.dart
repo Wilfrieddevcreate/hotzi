@@ -135,6 +135,11 @@ void main() {
     );
     await tester.tap(find.text('Wi-Fi').last);
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('1 téléphone avec Internet'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('1 téléphone avec Internet'), findsOneWidget);
     expect(find.textContaining('Il reste 12 min'), findsOneWidget);
 
@@ -145,5 +150,31 @@ void main() {
     await tester.tap(find.text('Oui, couper'));
     await tester.pumpAndSettle();
     expect(network.commands, contains('revoke ${sold.code}'));
+  });
+
+  testWidgets('le vendeur change le nom et le mot de passe du Wi-Fi', (tester) async {
+    await _pumpApp(tester, pin: '2580');
+    await tester.tap(find.text('Wi-Fi').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Changer le nom ou le mot de passe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Changer le nom ou le mot de passe'));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.first, 'Chez Aïcha');
+    await tester.enterText(fields.last, 'court');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Lettres sans accents'), findsOneWidget);
+    expect(find.text('Au moins 8 caractères.'), findsOneWidget);
+    expect(network.commands.where((command) => command.startsWith('changeWifi')), isEmpty);
+
+    await tester.enterText(fields.first, ' Chez Awa ');
+    await tester.enterText(fields.last, 'awa2026!');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pumpAndSettle();
+    expect(network.commands, contains('changeWifi DIRECT-hz-Chez Awa / awa2026!'));
+    expect(find.text('Nom et mot de passe enregistrés'), findsOneWidget);
   });
 }

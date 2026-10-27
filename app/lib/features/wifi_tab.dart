@@ -13,6 +13,7 @@ import '../widgets/hotzi_button.dart';
 import '../widgets/hotzi_logo.dart';
 import 'help_client_screen.dart';
 import 'wifi/wifi_actions.dart';
+import 'wifi/wifi_name_screen.dart';
 
 /// Le Wi-Fi Hotzi : l'allumer, ce qu'il faut donner au client, qui est connecté, et si tout va bien.
 class WifiTab extends StatefulWidget {
@@ -179,7 +180,16 @@ class _WifiTabState extends State<WifiTab> with WidgetsBindingObserver {
           value: network.passphrase,
           onCopy: () => _copy('Mot de passe', network.passphrase),
         ),
-        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WifiNameScreen())),
+            icon: const Icon(Icons.edit_rounded),
+            label: const Text('Changer le nom ou le mot de passe'),
+          ),
+        ),
+        const SizedBox(height: 4),
         HotziButton(
           label: 'Aider un client à se connecter',
           icon: Icons.help_outline_rounded,

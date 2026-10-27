@@ -84,6 +84,40 @@ class NetworkState {
   );
 }
 
+/// Règles d'Android pour le nom et le mot de passe d'un Wi-Fi Direct. La bibliothèque réseau
+/// vérifie les mêmes ; ici, elles servent à expliquer au vendeur ce qui ne va pas.
+abstract final class WifiNaming {
+  /// Android impose ce début de nom : le vendeur choisit seulement la fin.
+  static const prefix = 'DIRECT-hz-';
+
+  /// Un nom de Wi-Fi tient en 32 octets, préfixe compris.
+  static const maxEndingLength = 22;
+  static const maxPassphraseLength = 63;
+
+  static final _ending = RegExp(r'^[A-Za-z0-9 _-]+$');
+  static final _passphrase = RegExp(r'^[!-~]+$');
+
+  /// La fin du nom, celle que le vendeur a choisie.
+  static String ending(String networkName) =>
+      networkName.startsWith(prefix) ? networkName.substring(prefix.length) : networkName;
+
+  /// Ce qui ne va pas dans la fin du nom (sans espaces autour), ou null si elle convient.
+  static String? endingProblem(String ending) {
+    if (ending.isEmpty) return 'Choisis un nom.';
+    if (ending.length > maxEndingLength) return 'Au plus $maxEndingLength caractères.';
+    if (!_ending.hasMatch(ending)) return 'Lettres sans accents, chiffres, espaces ou tirets seulement.';
+    return null;
+  }
+
+  /// Ce qui ne va pas dans le mot de passe, ou null s'il convient.
+  static String? passphraseProblem(String passphrase) {
+    if (passphrase.length < 8) return 'Au moins 8 caractères.';
+    if (passphrase.length > maxPassphraseLength) return 'Au plus $maxPassphraseLength caractères.';
+    if (!_passphrase.hasMatch(passphrase)) return 'Pas d\'espace ni d\'accent.';
+    return null;
+  }
+}
+
 /// Pourquoi le Wi-Fi n'a pas pu démarrer.
 enum WifiStartProblem { permissions, wifiOff }
 
@@ -97,6 +131,9 @@ abstract interface class HotziNetwork {
   Future<void> openWifiSettings();
   Future<void> start();
   Future<void> stop();
+
+  /// Change le nom et le mot de passe du Wi-Fi ; s'il est allumé, il redémarre avec eux.
+  Future<void> changeWifi(String name, String passphrase);
 
   /// Annule un ticket et coupe tout de suite Internet au téléphone qui l'utilise.
   Future<void> revoke(String code);
@@ -128,6 +165,10 @@ class NativeNetwork implements HotziNetwork {
 
   @override
   Future<void> stop() => _channel.invokeMethod<void>('stop');
+
+  @override
+  Future<void> changeWifi(String name, String passphrase) =>
+      _channel.invokeMethod<void>('changeWifi', {'name': name, 'passphrase': passphrase});
 
   @override
   Future<void> revoke(String code) => _channel.invokeMethod<void>('revoke', {'code': code});

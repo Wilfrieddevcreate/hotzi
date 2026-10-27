@@ -82,6 +82,14 @@ class AccessController(
         synchronized(lock) { lastSeen[ip] = clock() }
     }
 
+    /**
+     * Oublie quand chaque client s'est servi d'Internet pour la dernière fois : un ticket en cours
+     * peut alors passer tout de suite sur une nouvelle adresse, par exemple après un changement de Wi-Fi.
+     */
+    fun forgetActivity() {
+        synchronized(lock) { lastSeen.clear() }
+    }
+
     /** Passe en « terminé » les tickets dont l'heure est dépassée et les renvoie. */
     fun expireDue(): List<Ticket> = mutate {
         val now = clock()

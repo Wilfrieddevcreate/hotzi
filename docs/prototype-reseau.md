@@ -11,7 +11,7 @@ Téléphone client ──Wi-Fi « DIRECT-hz-Hotzi »──> POP 7 ──données
                                        (vérifie le ticket à chaque connexion)
 ```
 
-- Le POP 7 crée son propre Wi-Fi en Wi-Fi Direct : **DIRECT-hz-Hotzi**, mot de passe **hotzi2026**. Ce réseau n'a aucune route vers Internet.
+- Le POP 7 crée son propre Wi-Fi en Wi-Fi Direct : **DIRECT-hz-Hotzi**, mot de passe **hotzi2026** (le vendeur peut les changer dans l'app). Ce réseau n'a aucune route vers Internet.
 - La seule sortie est le **proxy Hotzi** (`192.168.49.1`, port `8282`). À chaque connexion, il vérifie que le client a un ticket en cours.
 - Le **portail** `http://hotzi.wifi` sert à entrer le code. Un client sans ticket qui ouvre une page web en `http://` tombe dessus.
 - À la fin d'un ticket, ou s'il est annulé, le proxy **ferme toutes les connexions de ce client** dans la seconde et refuse les nouvelles. Les autres clients ne sont pas touchés.
@@ -88,7 +88,7 @@ Il faut le POP 7 et deux téléphones clients, A et B, réglés comme ci-dessus.
 - Seul le trafic qui passe par le proxy marche : la navigation et les applis qui respectent le proxy. **Pas d'appels WhatsApp** ni de jeux en ligne.
 - Les clients sont reconnus par leur **adresse IP**. Un utilisateur averti pourrait prendre l'adresse d'un autre.
 - Un ticket en cours peut passer sur une nouvelle adresse si l'ancienne n'a rien fait depuis 3 minutes, par exemple après une reconnexion. Il ne marche jamais sur deux téléphones en même temps.
-- Nom et mot de passe du Wi-Fi fixés dans le code, à rendre réglables dans l'app.
+- Le nom et le mot de passe du Wi-Fi se changent dans l'app vendeur (onglet Wi-Fi). Android impose que le nom commence par `DIRECT-hz-`. Après un changement, chaque téléphone client doit rejoindre le nouveau réseau et régler de nouveau le proxy. L'app de test garde `DIRECT-hz-Hotzi` / `hotzi2026`.
 - `.wifi` est une vraie extension de nom de domaine. Le proxy ne laisse jamais `hotzi.wifi` partir sur Internet, mais pour l'app finale il faudra soit acheter `hotzi.wifi`, soit choisir un nom qui ne peut pas exister sur Internet.
 - Les tickets sont enregistrés dans la même base SQLite que l'app vendeur (`hotzi.db`).
 

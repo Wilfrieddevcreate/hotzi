@@ -126,6 +126,17 @@ class AccessControllerTest {
     }
 
     @Test
+    fun `après un changement de Wi-Fi, un ticket en cours suit le client sur sa nouvelle adresse`() {
+        val ticket = access.create("Standard", 60_000, 100)
+        granted(access.activate(ticket.code, "192.168.49.10"))
+        access.touch("192.168.49.10")
+        access.forgetActivity()
+        val moved = granted(access.activate(ticket.code, "192.168.49.20"))
+        assertEquals("192.168.49.20", moved.clientIp)
+        assertFalse(access.isAllowed("192.168.49.10"))
+    }
+
+    @Test
     fun `les tickets et leurs heures survivent à un redémarrage`() {
         val ticket = access.create("Standard", 60_000, 100)
         val active = granted(access.activate(ticket.code, "192.168.49.10"))

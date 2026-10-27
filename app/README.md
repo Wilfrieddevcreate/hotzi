@@ -8,7 +8,7 @@ L'application du vendeur : forfaits, vente de tickets avec QR code, historique d
 - **Le Wi-Fi et les données** sont dans la bibliothèque Kotlin `android/net`, incluse dans le projet Android de l'app. Les données y vivent pour que le service qui coupe les clients les lise même quand l'app est fermée.
 - **Le pont** entre les deux est dans `android/app/src/main/kotlin/com/hotzi/hotzi/HotziBridge.kt` :
   - `hotzi/data` : forfaits, tickets, ventes, réglages ;
-  - `hotzi/network` : allumer, éteindre, annuler un ticket, autorisations ;
+  - `hotzi/network` : allumer, éteindre, nom et mot de passe du Wi-Fi, annuler un ticket, autorisations ;
   - `hotzi/network/state` : l'état du Wi-Fi, envoyé à chaque changement (et chaque seconde quand il tourne).
 - L'app n'affiche « protégé » que si le Wi-Fi et le proxy tournent vraiment.
 

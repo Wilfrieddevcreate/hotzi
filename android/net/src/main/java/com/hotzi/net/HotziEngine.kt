@@ -61,6 +61,14 @@ class HotziEngine private constructor(context: Context) {
     }
     val registry = ConnectionRegistry()
 
+    /** Nom et mot de passe du Wi-Fi, gardés dans la base pour que le service les retrouve au redémarrage. */
+    @Volatile
+    var credentials = WifiCredentials(
+        database.setting(KEY_WIFI_NAME) ?: WifiCredentials.DEFAULT.name,
+        database.setting(KEY_WIFI_PASSWORD) ?: WifiCredentials.DEFAULT.passphrase,
+    )
+        private set
+
     /** Augmente à chaque changement de ticket : l'app sait alors qu'elle doit relire la liste. */
     val ticketsVersion: Int get() = ticketChanges.get()
     private val portal = Portal(access, ::log)
@@ -90,7 +98,7 @@ class HotziEngine private constructor(context: Context) {
         update { State(running = true, runningSince = System.currentTimeMillis(), upstream = upstream.describe()) }
         log("Démarrage du Wi-Fi Hotzi")
         upstream.start()
-        hotspot.start(NETWORK_NAME, PASSPHRASE)
+        hotspot.start(credentials.name, credentials.passphrase)
         ticker = worker.scheduleWithFixedDelay(::tick, 1, 1, TimeUnit.SECONDS)
     }
 
@@ -108,6 +116,25 @@ class HotziEngine private constructor(context: Context) {
         worker.execute { stopProxy() }
         update { State(running = false) }
         log("Wi-Fi Hotzi arrêté")
+    }
+
+    /**
+     * Change le nom et le mot de passe du Wi-Fi. S'il est allumé, il redémarre aussitôt avec eux :
+     * les clients perdent Internet jusqu'à ce qu'ils rejoignent le nouveau réseau et entrent de nouveau leur code.
+     * @throws IllegalArgumentException si Android refuserait ce nom ou ce mot de passe.
+     */
+    fun changeWifi(next: WifiCredentials) {
+        require(next.isValid) { "Nom ou mot de passe du Wi-Fi refusé par Android." }
+        worker.execute {
+            if (next == credentials) return@execute
+            database.saveSetting(KEY_WIFI_NAME, next.name)
+            database.saveSetting(KEY_WIFI_PASSWORD, next.passphrase)
+            credentials = next
+            // En rejoignant le nouveau réseau, les clients changent souvent d'adresse : leur ticket doit pouvoir suivre.
+            access.forgetActivity()
+            log("Nouveau nom du Wi-Fi : « ${next.name} »")
+            if (state.running) main.post { hotspot.start(next.name, next.passphrase) }
+        }
     }
 
     /** Ticket de test, sans forfait ni vente (app de test réseau). */
@@ -182,7 +209,7 @@ class HotziEngine private constructor(context: Context) {
     private fun scheduleRetry() {
         if (retry?.isDone == false) return
         retry = worker.schedule(Runnable {
-            if (state.running && state.group == null) main.post { hotspot.start(NETWORK_NAME, PASSPHRASE) }
+            if (state.running && state.group == null) main.post { hotspot.start(credentials.name, credentials.passphrase) }
         }, RETRY_SECONDS, TimeUnit.SECONDS)
     }
 
@@ -232,8 +259,6 @@ class HotziEngine private constructor(context: Context) {
     }
 
     companion object {
-        const val NETWORK_NAME = "DIRECT-hz-Hotzi"
-        const val PASSPHRASE = "hotzi2026"
         const val PROXY_PORT = 8282
 
         private const val TAG = "Hotzi"
@@ -241,6 +266,8 @@ class HotziEngine private constructor(context: Context) {
         private const val MAX_LOGS = 200
         private const val PREFS = "hotzi_engine"
         private const val KEY_SHOULD_RUN = "should_run"
+        private const val KEY_WIFI_NAME = "wifi_name"
+        private const val KEY_WIFI_PASSWORD = "wifi_password"
 
         @Volatile
         private var instance: HotziEngine? = null

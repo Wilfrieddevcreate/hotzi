@@ -68,6 +68,11 @@ class AppState extends ChangeNotifier {
 
   Future<void> openWifiSettings() => _network.openWifiSettings();
 
+  /// Change le nom (la fin, après « DIRECT-hz- ») et le mot de passe du Wi-Fi.
+  /// S'il est allumé, il redémarre : les clients connectés perdent Internet jusqu'à ce qu'ils le rejoignent.
+  Future<void> changeWifi(String ending, String passphrase) =>
+      _network.changeWifi('${WifiNaming.prefix}$ending', passphrase);
+
   /// Annule un ticket : s'il est en cours, Internet est coupé tout de suite sur ce téléphone.
   Future<void> revoke(Ticket ticket) => _network.revoke(ticket.code);
 

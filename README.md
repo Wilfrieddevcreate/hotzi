@@ -12,7 +12,7 @@ Hotzi transforme un smartphone Android en point Wi-Fi payant. Le vendeur vend de
 | Logo « Lever de soleil » | Fait |
 | Prototype réseau (`android/`) | Validé en partie sur le TECNO POP 7 : le Wi-Fi Hotzi se crée, les téléphones s'y connectent, le portail et l'activation par code marchent. La coupure individuelle à la fin d'un ticket reste à vérifier |
 | App vendeur (`app/`) | Faite : forfaits, vente de tickets avec QR code, historique, code secret |
-| Wi-Fi dans l'app vendeur | Branché : allumer / éteindre, clients connectés, couper un client, annuler un ticket, guide « Aider un client » |
+| Wi-Fi dans l'app vendeur | Branché : allumer / éteindre, nom et mot de passe au choix, clients connectés, couper un client, annuler un ticket, guide « Aider un client » |
 | Choix de la solution réseau définitive | Proxy en place ; « le vendeur valide le téléphone » reste à étudier (voir plus bas) |
 | Tests finaux sur le POP 7 et rapport de compatibilité | À faire |
 
@@ -40,7 +40,7 @@ Prérequis : Flutter 3.44 ou plus récent, JDK 17 et le SDK Android (plateforme 
 
 ```sh
 cd app
-flutter test                 # 18 tests automatiques
+flutter test                 # 21 tests automatiques
 flutter build apk --release  # APK : app/build/app/outputs/flutter-apk/app-release.apk
 ```
 
@@ -48,7 +48,7 @@ flutter build apk --release  # APK : app/build/app/outputs/flutter-apk/app-relea
 
 ```sh
 cd android
-./gradlew :net:testDebugUnitTest   # 22 tests : règles des tickets, requêtes du proxy
+./gradlew :net:testDebugUnitTest   # 27 tests : règles des tickets, nom du Wi-Fi, requêtes du proxy
 ./gradlew :banc:assembleDebug      # APK : android/banc/build/outputs/apk/debug/banc-debug.apk
 ```
 

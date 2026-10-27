@@ -31,6 +31,9 @@ class FakeNetwork implements HotziNetwork {
   Future<void> stop() async => commands.add('stop');
 
   @override
+  Future<void> changeWifi(String name, String passphrase) async => commands.add('changeWifi $name / $passphrase');
+
+  @override
   Future<void> revoke(String code) async => commands.add('revoke $code');
 
   @override
